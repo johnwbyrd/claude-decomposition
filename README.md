@@ -100,6 +100,10 @@ python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --vars
 python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --shutdown
 ```
 
+## Security
+
+The persistent REPL gives agents arbitrary Python execution that persists across tool calls. This is powerful but carries risk. Use comprehend in a sandboxed environment (containers, VMs, or your agent platform's built-in sandbox).
+
 ## Background
 
 Inspired by the [RLM framework](https://github.com/alexzhang13/rlm) from MIT OASYS lab ([paper](https://arxiv.org/abs/2512.24601), [blog](https://alexzhang13.github.io/blog/2025/rlm/)). The core idea -- that language models should decompose large problems into smaller ones, using persistent state to accumulate findings -- maps naturally onto the subagent + REPL architecture that modern coding agents already have.
