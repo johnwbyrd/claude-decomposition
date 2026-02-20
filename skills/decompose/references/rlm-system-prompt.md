@@ -44,7 +44,7 @@ loop — it already iterates until the task is complete.
 | `llm_query_batched()` | Multiple parallel `Task` calls |
 | `rlm_query()` | `Task` with general-purpose subagent |
 | `rlm_query_batched()` | Multiple parallel general-purpose `Task` calls |
-| `SHOW_VARS()` | `python3 scripts/repl_client.py /tmp/repl.sock --vars` |
+| `SHOW_VARS()` | `python3 scripts/repl_client.py REPL_ADDR --vars` |
 | `print()` | Direct text output, or `print()` in the persistent REPL |
 
 ### Decision: When to Use Which Primitive
@@ -162,7 +162,7 @@ state so adaptive strategies can build on prior work.
 
 **Mapping:** Present the synthesized answer directly to the user. If the
 final answer is stored in a REPL variable, read it out first:
-`python3 scripts/repl_client.py /tmp/repl.sock 'print(final_answer)'`
+`python3 scripts/repl_client.py REPL_ADDR 'print(final_answer)'`
 
 ## Source
 

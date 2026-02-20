@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """Send code to the persistent REPL server and print results.
 
+Connects via AF_UNIX where available (Linux, macOS). On platforms without
+Unix domain sockets (Windows), reads the TCP address from the given path.
+
 Usage:
-    echo 'x = 42' | repl_client.py <socket_path>
-    repl_client.py <socket_path> 'print(x + 1)'
-    repl_client.py <socket_path> --vars
-    repl_client.py <socket_path> --shutdown
+    echo 'x = 42' | repl_client.py <address_path>
+    repl_client.py <address_path> 'print(x + 1)'
+    repl_client.py <address_path> --vars
+    repl_client.py <address_path> --shutdown
 
 Protocol: 4-byte big-endian length prefix + UTF-8 JSON payload.
 """
 
 import json
+import os
 import socket
 import struct
 import sys
+
+_HAS_UNIX = hasattr(socket, 'AF_UNIX')
 
 
 def send_msg(sock, data):
@@ -35,12 +41,26 @@ def recv_msg(sock):
     return json.loads(payload.decode("utf-8"))
 
 
+def connect(addr_path):
+    """Connect to the REPL server, auto-detecting Unix socket vs TCP."""
+    if _HAS_UNIX:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(addr_path)
+    else:
+        with open(addr_path) as f:
+            addr = f.read().strip()
+        host, port = addr.rsplit(':', 1)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, int(port)))
+    return sock
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__, file=sys.stderr)
         sys.exit(1)
 
-    sock_path = sys.argv[1]
+    addr_path = sys.argv[1]
 
     if len(sys.argv) > 2 and sys.argv[2] == "--vars":
         msg = {"command": "show_vars"}
@@ -51,12 +71,11 @@ def main():
     else:
         msg = {"code": sys.stdin.read()}
 
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        sock.connect(sock_path)
+        sock = connect(addr_path)
     except (ConnectionRefusedError, FileNotFoundError):
-        print(f"Error: Cannot connect to REPL server at {sock_path}", file=sys.stderr)
-        print("Start the server first: python3 repl_server.py " + sock_path, file=sys.stderr)
+        print(f"Error: Cannot connect to REPL server at {addr_path}", file=sys.stderr)
+        print("Start the server first: python3 repl_server.py " + addr_path, file=sys.stderr)
         sys.exit(1)
 
     send_msg(sock, msg)

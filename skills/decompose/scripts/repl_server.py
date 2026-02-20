@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Persistent Python REPL server over a Unix domain socket.
+"""Persistent Python REPL server over Unix domain socket or TCP.
 
 Maintains a single namespace across all code executions. State lives
 in-memory in the running process — no serialization needed.
 
+Uses AF_UNIX where available (Linux, macOS). On platforms without Unix
+domain sockets (Windows), binds to localhost on a random port and writes
+the TCP address to the given path for the client to discover.
+
 Usage:
-    repl_server.py <socket_path>
+    repl_server.py <address_path>
+    repl_server.py --make-addr        Print a unique address path and exit
 
 Protocol: 4-byte big-endian length prefix + UTF-8 JSON payload.
 Request:  {"code": "x = 42"}
@@ -19,7 +24,11 @@ import signal
 import socket
 import struct
 import sys
+import tempfile
 import threading
+import uuid
+
+_HAS_UNIX = hasattr(socket, 'AF_UNIX')
 
 
 _SAFE_BUILTINS = {
@@ -107,7 +116,7 @@ def send_msg(conn, data):
     conn.sendall(struct.pack(">I", len(payload)) + payload)
 
 
-def handle_client(conn, repl):
+def handle_client(conn, repl, addr_path):
     try:
         msg = recv_msg(conn)
         if msg is None:
@@ -121,6 +130,8 @@ def handle_client(conn, repl):
             send_msg(conn, {"locals": visible})
         elif msg.get("command") == "shutdown":
             send_msg(conn, {"status": "shutting down"})
+            if os.path.exists(addr_path):
+                os.unlink(addr_path)
             os._exit(0)
         else:
             send_msg(conn, {"stderr": "Unknown request"})
@@ -133,36 +144,62 @@ def handle_client(conn, repl):
         conn.close()
 
 
+def create_server(addr_path):
+    """Create a server socket. Uses AF_UNIX when available, TCP otherwise."""
+    if _HAS_UNIX:
+        if os.path.exists(addr_path):
+            os.unlink(addr_path)
+        server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        server.bind(addr_path)
+    else:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(('127.0.0.1', 0))
+        port = server.getsockname()[1]
+        with open(addr_path, 'w') as f:
+            f.write(f'127.0.0.1:{port}')
+    server.listen(5)
+    return server
+
+
+def make_addr():
+    """Generate a unique address path for this session."""
+    suffix = '.sock' if _HAS_UNIX else '.addr'
+    name = f'decompose_{uuid.uuid4().hex[:12]}{suffix}'
+    return os.path.join(tempfile.gettempdir(), name)
+
+
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] == '--make-addr':
+        print(make_addr())
+        sys.exit(0)
+
     if len(sys.argv) != 2:
-        print("Usage: repl_server.py <socket_path>", file=sys.stderr)
+        print("Usage: repl_server.py <address_path>", file=sys.stderr)
+        print("       repl_server.py --make-addr", file=sys.stderr)
         sys.exit(1)
 
-    sock_path = sys.argv[1]
-
-    # Clean up stale socket
-    if os.path.exists(sock_path):
-        os.unlink(sock_path)
+    addr_path = sys.argv[1]
 
     repl = PersistentREPL()
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(sock_path)
-    server.listen(5)
+    server = create_server(addr_path)
 
     def cleanup(signum, frame):
         server.close()
-        if os.path.exists(sock_path):
-            os.unlink(sock_path)
+        if os.path.exists(addr_path):
+            os.unlink(addr_path)
         sys.exit(0)
 
-    signal.signal(signal.SIGTERM, cleanup)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, cleanup)
     signal.signal(signal.SIGINT, cleanup)
 
-    print(f"REPL server listening on {sock_path}", file=sys.stderr)
+    mode = "Unix socket" if _HAS_UNIX else "TCP"
+    print(f"REPL server listening on {addr_path} ({mode})", file=sys.stderr)
 
     while True:
         conn, _ = server.accept()
-        t = threading.Thread(target=handle_client, args=(conn, repl), daemon=True)
+        t = threading.Thread(target=handle_client, args=(conn, repl, addr_path),
+                             daemon=True)
         t.start()
 
 

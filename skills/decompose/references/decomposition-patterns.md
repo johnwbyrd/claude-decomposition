@@ -20,11 +20,12 @@ fan out in parallel, aggregate error summaries via the REPL.
 
 **Execution:**
 
-1. Start the REPL and examine log structure:
+1. Generate a session-unique address, start the REPL, and examine log structure:
    ```bash
-   python3 scripts/repl_server.py /tmp/repl.sock &
+   REPL_ADDR=$(python3 scripts/repl_server.py --make-addr)
+   python3 scripts/repl_server.py "$REPL_ADDR" &
 
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    with open("server.log") as f:
        first_lines = [next(f) for _ in range(5)]
        print("First lines:", first_lines)
@@ -39,7 +40,7 @@ fan out in parallel, aggregate error summaries via the REPL.
 3. Fan out parallel Task calls (one per chunk). Each subagent stores
    findings in the REPL:
    ```
-   Task(prompt="Use REPL at /tmp/repl.sock. Identify all errors, warnings, and
+   Task(prompt="Use REPL at REPL_ADDR. Identify all errors, warnings, and
    exceptions in this log segment. Store results in errors['chunk_N'] as a list
    of dicts with keys: timestamp, error_type, cause. Chunk: <chunk>")
    ```
@@ -47,7 +48,7 @@ fan out in parallel, aggregate error summaries via the REPL.
 
 4. Aggregate from the REPL:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    all_errors = []
    for chunk_id, chunk_errors in errors.items():
        all_errors.extend(chunk_errors)
@@ -72,7 +73,7 @@ potential bugs."
 
 **Assessment:**
 ```bash
-python3 scripts/repl_client.py /tmp/repl.sock '
+python3 scripts/repl_client.py REPL_ADDR '
 import glob, os
 source_files = glob.glob("src/**/*.py", recursive=True)
 file_sizes = {f: os.path.getsize(f) for f in source_files}
@@ -90,7 +91,7 @@ in the REPL for cross-module aggregation.
 
 1. Group files by directory in the REPL:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    from collections import defaultdict
    groups = defaultdict(list)
    for f in source_files:
@@ -104,7 +105,7 @@ in the REPL for cross-module aggregation.
 
 2. Fan out parallel Task calls, one per module group:
    ```
-   Task(prompt="Use REPL at /tmp/repl.sock. Read and review these source files
+   Task(prompt="Use REPL at REPL_ADDR. Read and review these source files
    for architectural issues, potential bugs, and code quality concerns.
    Store findings in reviews['module_name'] as a list of dicts with keys:
    file, line, severity, description. Files: <list of files in group>")
@@ -112,7 +113,7 @@ in the REPL for cross-module aggregation.
 
 3. Aggregate from the REPL:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    all_findings = []
    for module, findings in reviews.items():
        all_findings.extend(findings)
@@ -166,7 +167,7 @@ All results flow through the REPL.
 
 3. Collect Phase 1 results. Store relevance flags in the REPL:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    relevant_sections = [s for s, flag in section_flags.items() if flag == "YES"]
    print(f"{len(relevant_sections)} of {len(section_flags)} sections are relevant")
    '
@@ -175,7 +176,7 @@ All results flow through the REPL.
 4. Phase 2 — deep analysis of relevant sections only:
    ```
    Task(subagent_type="general-purpose",
-        prompt="Use REPL at /tmp/repl.sock. Analyze this contract section
+        prompt="Use REPL at REPL_ADDR. Analyze this contract section
    for clauses that limit liability to less than the purchase price. Store
    findings in liability_analysis['section_N'] with keys: clause_text,
    implication. Section: <relevant_section>")
@@ -196,7 +197,7 @@ and asks "What data was lost or changed in the migration?"
 
 **Assessment:**
 ```bash
-python3 scripts/repl_client.py /tmp/repl.sock '
+python3 scripts/repl_client.py REPL_ADDR '
 import os
 before_size = os.path.getsize("before.csv")
 after_size = os.path.getsize("after.csv")
@@ -214,7 +215,7 @@ compare pairwise, aggregate differences in the REPL.
 
 1. Examine structure in the REPL:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    with open("before.csv") as f:
        header = f.readline().strip()
        row_count_before = sum(1 for _ in f)
@@ -234,14 +235,14 @@ compare pairwise, aggregate differences in the REPL.
 
 3. Pair chunks by position. Fan out parallel comparisons:
    ```
-   Task(prompt="Use REPL at /tmp/repl.sock. Compare these two CSV segments.
+   Task(prompt="Use REPL at REPL_ADDR. Compare these two CSV segments.
    Store results in diffs['chunk_N'] with keys: lost_rows, changed_rows,
    added_rows (each a list). Before: <before_chunk> After: <after_chunk>")
    ```
 
 4. Aggregate from the REPL:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    total_lost = sum(len(d["lost_rows"]) for d in diffs.values())
    total_changed = sum(len(d["changed_rows"]) for d in diffs.values())
    total_added = sum(len(d["added_rows"]) for d in diffs.values())
@@ -262,7 +263,7 @@ to the database, identifying all validation steps along the way."
 
 **Assessment:**
 ```bash
-python3 scripts/repl_client.py /tmp/repl.sock '
+python3 scripts/repl_client.py REPL_ADDR '
 import glob, os
 py_files = glob.glob("src/**/*.py", recursive=True)
 total = sum(os.path.getsize(f) for f in py_files)
@@ -282,22 +283,22 @@ Phase 3: Synthesize the trace from REPL state.
 
 1. Phase 1 — Architecture mapping. Fan out per module, all writing to REPL:
    ```
-   Task(prompt="Use REPL at /tmp/repl.sock. Read all files in src/handlers/
+   Task(prompt="Use REPL at REPL_ADDR. Read all files in src/handlers/
    and store in arch['handlers'] a dict mapping each public function to:
    its calls, its imports, and a one-line summary.")
 
-   Task(prompt="Use REPL at /tmp/repl.sock. Read all files in src/validators/
+   Task(prompt="Use REPL at REPL_ADDR. Read all files in src/validators/
    and store in arch['validators'] a dict mapping each validation function to:
    what it checks, what errors it raises.")
 
-   Task(prompt="Use REPL at /tmp/repl.sock. Read all files in src/database/
+   Task(prompt="Use REPL at REPL_ADDR. Read all files in src/database/
    and store in arch['database'] a dict mapping each database operation to:
    what tables it touches, what ORM it uses.")
    ```
 
 2. Read the architecture map from the REPL and identify the call chain:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    for layer, funcs in arch.items():
        print(f"\n{layer}:")
        for name, info in funcs.items():
@@ -308,7 +309,7 @@ Phase 3: Synthesize the trace from REPL state.
 3. Phase 2 — Targeted trace using the architecture map:
    ```
    Task(subagent_type="general-purpose",
-        prompt="Use REPL at /tmp/repl.sock. Read arch variable for the
+        prompt="Use REPL at REPL_ADDR. Read arch variable for the
    architecture map. Trace the flow from the HTTP handler for POST /users
    through all validation steps to the database insert. Read each file
    along the path. Store the complete trace in trace_result as a list of
@@ -317,7 +318,7 @@ Phase 3: Synthesize the trace from REPL state.
 
 4. Phase 3 — Read trace from REPL and synthesize for the user:
    ```bash
-   python3 scripts/repl_client.py /tmp/repl.sock '
+   python3 scripts/repl_client.py REPL_ADDR '
    for i, step in enumerate(trace_result, 1):
        checks = ", ".join(step.get("validation_checks", []))
        print(f"{i}. {step[\"file\"]}:{step[\"function\"]} — {step[\"action\"]}")

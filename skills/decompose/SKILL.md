@@ -37,11 +37,28 @@ bash commands, substitute the actual absolute path.
 
 ## The REPL
 
-Every decomposition session starts the same way:
+Every decomposition session starts by generating a unique address and
+launching the server:
 
 ```bash
-python3 SCRIPTS/repl_server.py /tmp/repl.sock &
+# Generate a session-unique address (prevents collisions between
+# simultaneous sessions on the same machine)
+REPL_ADDR=$(python3 SCRIPTS/repl_server.py --make-addr)
+python3 SCRIPTS/repl_server.py "$REPL_ADDR" &
 ```
+
+On Windows (no Unix domain sockets), the server automatically binds to
+TCP on localhost and writes the address to the given path. The client
+reads it back. The interface is identical:
+
+```powershell
+$env:REPL_ADDR = python SCRIPTS/repl_server.py --make-addr
+Start-Process -NoNewWindow python SCRIPTS/repl_server.py,$env:REPL_ADDR
+```
+
+Throughout this document, `REPL_ADDR` refers to the session-unique
+address returned by `--make-addr`. In all bash commands, substitute the
+actual path. **Each session must use its own address.**
 
 This launches a persistent Python REPL. Variables, imports, and definitions
 survive across calls. The REPL is your memory — use it instead of reading
@@ -49,11 +66,11 @@ files into your context window.
 
 ```bash
 # Run code (state persists between calls)
-python3 SCRIPTS/repl_client.py /tmp/repl.sock 'greeting_message = "hello"'
-python3 SCRIPTS/repl_client.py /tmp/repl.sock 'print(greeting_message)'
+python3 SCRIPTS/repl_client.py REPL_ADDR 'greeting_message = "hello"'
+python3 SCRIPTS/repl_client.py REPL_ADDR 'print(greeting_message)'
 
 # See all stored variables
-python3 SCRIPTS/repl_client.py /tmp/repl.sock --vars
+python3 SCRIPTS/repl_client.py REPL_ADDR --vars
 ```
 
 **Use the REPL for everything.** Finding files, searching content, reading
@@ -61,7 +78,7 @@ source, storing results — all of it. Every fact you discover goes into a
 variable where it accumulates instead of evaporating.
 
 ```bash
-python3 SCRIPTS/repl_client.py /tmp/repl.sock '
+python3 SCRIPTS/repl_client.py REPL_ADDR '
 import glob, os, re
 
 # Find files (instead of Glob tool)
@@ -97,16 +114,31 @@ re-initialize it — that would wipe results from other subagents. Just
 write to it:
 
 ```bash
-python3 SCRIPTS/repl_client.py /tmp/repl.sock '
+python3 SCRIPTS/repl_client.py REPL_ADDR '
 _decompose_results["auth_module_analysis"] = {"functions": [...], "issues": [...]}
 '
 ```
 
-Every subagent writes to `_decompose_results[key]`. Every parent reads from
-`_decompose_results[key]`. The underscore prefix and specific name avoid
-collisions with any user or project variables.
+**The parent assigns every subagent a unique key** before launching it.
+Subagents must never choose their own keys — the parent is the only one
+that sees all keys in use and can guarantee uniqueness. A subagent writes
+only to its assigned key; it never reads or writes other subagents' keys.
 
-Keys should be descriptive: `'auth_module_function_signatures'`, not `'chunk1'`.
+Keys should be descriptive: `'auth_module_function_signatures'`, not
+`'chunk1'`. For deeper nesting, use sub-keys within the assigned key:
+
+```bash
+python3 SCRIPTS/repl_client.py REPL_ADDR '
+_decompose_results["auth_module"] = {
+    "function_signatures": [...],
+    "import_map": {...},
+    "issues": [...]
+}
+'
+```
+
+The parent reads from `_decompose_results[key]`. The underscore prefix
+and specific name avoid collisions with user or project variables.
 
 ## The Workflow
 
@@ -169,11 +201,15 @@ All patterns follow the same contract:
 
 1. Parent starts the REPL server (once per session). `_decompose_results`
    is auto-initialized. **Never re-initialize it.**
-2. Subagent writes findings to `_decompose_results[descriptive_key]`.
-3. **Subagent reports back** the key it wrote and a summary of what's in it.
-4. Parent reads `_decompose_results[key]` from the REPL.
+2. **Parent assigns a unique key** to each subagent in the prompt.
+   Subagents never pick their own keys.
+3. Subagent writes findings only to its assigned
+   `_decompose_results[key]`. It may create sub-keys within that key
+   freely, but must not touch any other top-level key.
+4. **Subagent reports back** the key it wrote and a summary of what's in it.
+5. Parent reads `_decompose_results[key]` from the REPL.
 
-Step 3 is critical. The Task tool returns a text message to the parent —
+Step 4 is critical. The Task tool returns a text message to the parent —
 that message is the *only* way the parent learns what the subagent stored.
 Every subagent prompt must end with an instruction to report what was written.
 
@@ -195,7 +231,7 @@ stores results in `_decompose_results` under a descriptive key.
 **Parent launches subagent:**
 ```
 Task(subagent_type="general-purpose",
-     prompt="Use the REPL at /tmp/repl.sock. Read and analyze these modules.
+     prompt="Use the REPL at REPL_ADDR. Read and analyze these modules.
      Store your findings in _decompose_results['auth_module_analysis'] as a
      dict with keys:
        'function_signatures' — list of all public function signatures
@@ -216,7 +252,7 @@ models.py, unused import in tokens.py)."
 
 **Parent reads back:**
 ```bash
-python3 SCRIPTS/repl_client.py /tmp/repl.sock '
+python3 SCRIPTS/repl_client.py REPL_ADDR '
 auth_data = _decompose_results["auth_module_analysis"]
 print("Functions:", auth_data["function_signatures"])
 print("Concerns:", auth_data["identified_concerns"])
@@ -230,7 +266,7 @@ a single message.
 
 **Parent launches all subagents at once:**
 ```
-Task(prompt="Use REPL at /tmp/repl.sock. Analyze this log segment for errors.
+Task(prompt="Use REPL at REPL_ADDR. Analyze this log segment for errors.
      Store in _decompose_results['log_segment_hours_00_to_06'] as a dict with
      keys 'error_summary' and 'critical_error_list'.
      Segment: <chunk1>
@@ -238,7 +274,7 @@ Task(prompt="Use REPL at /tmp/repl.sock. Analyze this log segment for errors.
      When done, reply with: the _decompose_results key you wrote,
      how many errors found, and one sentence summarizing the most severe.")
 
-Task(prompt="Use REPL at /tmp/repl.sock. Analyze this log segment for errors.
+Task(prompt="Use REPL at REPL_ADDR. Analyze this log segment for errors.
      Store in _decompose_results['log_segment_hours_06_to_12'] as a dict with
      keys 'error_summary' and 'critical_error_list'.
      Segment: <chunk2>
@@ -246,7 +282,7 @@ Task(prompt="Use REPL at /tmp/repl.sock. Analyze this log segment for errors.
      When done, reply with: the _decompose_results key you wrote,
      how many errors found, and one sentence summarizing the most severe.")
 
-Task(prompt="Use REPL at /tmp/repl.sock. Analyze this log segment for errors.
+Task(prompt="Use REPL at REPL_ADDR. Analyze this log segment for errors.
      Store in _decompose_results['log_segment_hours_12_to_18'] as a dict with
      keys 'error_summary' and 'critical_error_list'.
      Segment: <chunk3>
@@ -259,7 +295,7 @@ Task(prompt="Use REPL at /tmp/repl.sock. Analyze this log segment for errors.
 
 **Parent reads accumulated results:**
 ```bash
-python3 SCRIPTS/repl_client.py /tmp/repl.sock '
+python3 SCRIPTS/repl_client.py REPL_ADDR '
 for segment_key, segment_data in sorted(_decompose_results.items()):
     if segment_key.startswith("log_segment_"):
         print(f"{segment_key}: {segment_data[\"error_summary\"]}")
