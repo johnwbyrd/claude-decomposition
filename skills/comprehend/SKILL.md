@@ -61,8 +61,17 @@ address returned by `--make-addr`. In all bash commands, substitute the
 actual path. **Each session must use its own address.**
 
 This launches a persistent Python REPL. Variables, imports, and definitions
-survive across calls. The REPL is your memory — use it instead of reading
-files into your context window.
+survive across calls -- not just during comprehension, but for the entire
+session. The REPL is your memory: use it instead of reading files into
+your context window.
+
+**This is the key tradeoff.** The upfront cost is ceremony — launching a
+server, passing addresses, writing structured results. The payoff comes
+later: when the user asks follow-up questions about the code, you can
+query `_comprehend_results` from the REPL instead of re-reading source
+files. Every answer costs one small Bash call instead of consuming context
+window. The REPL turns comprehension from a one-shot summary into a
+persistent, queryable knowledge base for the rest of the conversation.
 
 ```bash
 # Run code (state persists between calls)
@@ -183,6 +192,24 @@ results back. Details are in the next section.
 
 If the aggregated answer has gaps, target those specific areas for deeper
 analysis. The REPL still holds everything from the first pass.
+
+### 6. Answer from the REPL
+
+After comprehension, the REPL remains running. When the user asks
+follow-up questions, query `_comprehend_results` instead of re-reading
+source files. This keeps your main context window small and available
+for actual work — edits, debugging, new features — rather than filled
+with source code you've already analyzed.
+
+```bash
+python3 SCRIPTS/repl_client.py REPL_ADDR '
+# Answer a specific question without re-reading any files
+print(_comprehend_results["core_library"]["design_patterns"])
+'
+```
+
+The REPL is not just a tool for the comprehension phase — it is the
+*product* of the comprehension phase.
 
 ### The 50KB Rule
 
