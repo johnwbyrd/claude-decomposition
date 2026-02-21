@@ -1,6 +1,6 @@
 # comprehend
 
-Deep codebase understanding for AI coding agents.
+Deep codebase understanding for AI coding agents, without smashing your context window.
 
 ## The Problem
 
@@ -29,24 +29,13 @@ The persistent REPL is the key insight. It acts as shared memory: subagents writ
 
 ## How It Works
 
-comprehend is a [skill](https://skills.sh/) for Claude Code, OpenAI, Gemini, or whatever your favorite LLM is. It provides:
+comprehend is a [skill](https://skills.sh/) for Claude Code, OpenAI, Gemini, or your favorite LLM du jour. It provides:
 
 - **A context assessment protocol** -- measure before analyzing, choose the right strategy for the size
 - **Three analysis primitives** -- direct (small), recursive (medium), batched parallel (large)
 - **A persistent REPL server** -- Python process over Unix socket that maintains state across shell calls
 - **A text chunking utility** -- splits files at natural boundaries, not arbitrary character counts
 - **Worked examples** -- five real patterns (log analysis, code review, document Q&A, data comparison, cross-file tracing)
-
-### The 50KB Rule
-
-If total context is under 50KB, just read it directly. Above that, fan out subagents:
-
-| Total size | Strategy |
-|:---|:---|
-| < 50KB | Read directly, no subagents needed |
-| 50KB–200KB | One subagent per file or module, parallel |
-| 200KB–1MB | Chunk files first, then fan out subagents |
-| > 1MB | Two-level: chunk, fan out, aggregate, synthesize |
 
 ## Installation
 
@@ -56,7 +45,7 @@ If total context is under 50KB, just read it directly. Above that, fan out subag
 npx skills add johnwbyrd/comprehend
 ```
 
-### Local install (single project)
+### Local install (single project, Claude)
 
 ```bash
 git clone https://github.com/johnwbyrd/comprehend.git
@@ -64,15 +53,13 @@ mkdir -p .claude/skills
 cp -r comprehend/skills/comprehend .claude/skills/
 ```
 
-### Global install (all projects)
+### Global install (all local Claude projects)
 
 ```bash
 git clone https://github.com/johnwbyrd/comprehend.git
 mkdir -p ~/.claude/skills
 cp -r comprehend/skills/comprehend ~/.claude/skills/
 ```
-
-Compatible agents auto-discover skills at `.claude/skills/*/SKILL.md`. Commit the directory to share with your team.
 
 ## Usage
 
@@ -102,11 +89,13 @@ python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --shutdown
 
 ## Security
 
-The persistent REPL gives agents arbitrary Python execution that persists across tool calls. This is powerful but carries risk. Use comprehend in a sandboxed environment (containers, VMs, or your agent platform's built-in sandbox).
+The persistent REPL gives agents arbitrary Python execution that persists across tool calls. This is powerful but carries significant risk if your LLM behaves maliciously. Use comprehend in a sandboxed environment (containers, VMs, or your agent platform's built-in sandbox). Note carefully the limitation of liability in the LICENSE file.
 
 ## Background
 
 Inspired by the [RLM framework](https://github.com/alexzhang13/rlm) from MIT OASYS lab ([paper](https://arxiv.org/abs/2512.24601), [blog](https://alexzhang13.github.io/blog/2025/rlm/)). The core idea -- that language models should decompose large problems into smaller ones, using persistent state to accumulate findings -- maps naturally onto the subagent + REPL architecture that modern coding agents already have.
+
+Also related: [RAPTOR](https://arxiv.org/abs/2401.18059) (Recursive Abstractive Processing for Tree-Organized Retrieval), which builds hierarchical summaries bottom-up over chunks. Comprehend uses a similar structure -- chunk, summarize in parallel, aggregate -- but operates online during a session rather than as an offline indexing step, and relies on the agent to choose natural boundaries rather than embedding-based clustering.
 
 ## License
 
