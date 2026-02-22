@@ -75,7 +75,7 @@ def main():
         sock = connect(addr_path)
     except (ConnectionRefusedError, FileNotFoundError):
         print(f"Error: Cannot connect to REPL server at {addr_path}", file=sys.stderr)
-        print("Start the server first: python3 repl_server.py " + addr_path, file=sys.stderr)
+        print("Start the server first: python repl_server.py " + addr_path, file=sys.stderr)
         sys.exit(1)
 
     send_msg(sock, msg)

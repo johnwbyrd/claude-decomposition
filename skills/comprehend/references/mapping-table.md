@@ -15,9 +15,9 @@ persistent REPL as the primary mechanism.
 | `llm_query_batched(prompts)` | Multiple `Task` calls in a single message | Issue N independent Task calls simultaneously. They run in parallel. |
 | `rlm_query_batched(prompts)` | Multiple `Task` calls (general-purpose) in a single message | Same as above but each subagent gets full tool access for deeper reasoning. |
 | `print()` for debugging | Direct text output to user | Agent responses are visible to the user. No special mechanism needed. |
-| `SHOW_VARS()` | `python3 scripts/repl_client.py REPL_ADDR --vars` | The persistent REPL provides a true equivalent. Inspect all accumulated state at any time. |
+| `SHOW_VARS()` | `python scripts/repl_client.py REPL_ADDR --vars` | The persistent REPL provides a true equivalent. Inspect all accumulated state at any time. |
 | `FINAL_VAR(answer)` / `FINAL(answer)` | Final response to user | Present the synthesized answer directly. Read final results from the REPL if needed. |
-| Python computation in REPL | Persistent REPL | `python3 scripts/repl_client.py REPL_ADDR 'import math; print(math.sin(1.5))'` — state persists across calls. |
+| Python computation in REPL | Persistent REPL | `python scripts/repl_client.py REPL_ADDR 'import math; print(math.sin(1.5))'` — state persists across calls. |
 | `import` in REPL | Persistent REPL | Import once, use everywhere. The REPL namespace persists for the session. |
 
 ## Decomposition Patterns

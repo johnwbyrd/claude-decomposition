@@ -71,20 +71,20 @@ All scripts are pure Python 3 with no external dependencies.
 
 **chunk_text.py** — Measure and split files at natural boundaries:
 ```bash
-python3 .claude/skills/comprehend/scripts/chunk_text.py info large_file.txt
-python3 .claude/skills/comprehend/scripts/chunk_text.py chunk large_file.txt --size 80000
-python3 .claude/skills/comprehend/scripts/chunk_text.py boundaries source.py
+python .claude/skills/comprehend/scripts/chunk_text.py info large_file.txt
+python .claude/skills/comprehend/scripts/chunk_text.py chunk large_file.txt --size 80000
+python .claude/skills/comprehend/scripts/chunk_text.py boundaries source.py
 ```
 
 **repl_server.py / repl_client.py** — Persistent Python REPL over Unix socket (TCP on Windows):
 ```bash
-REPL_ADDR=$(python3 .claude/skills/comprehend/scripts/repl_server.py --make-addr)
-python3 .claude/skills/comprehend/scripts/repl_server.py "$REPL_ADDR" &
+REPL_ADDR=$(python .claude/skills/comprehend/scripts/repl_server.py --make-addr)
+python .claude/skills/comprehend/scripts/repl_server.py "$REPL_ADDR" &
 
-python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" 'x = 42'
-python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" 'print(x + 1)'  # 43
-python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --vars
-python3 .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --shutdown
+python .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" 'x = 42'
+python .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" 'print(x + 1)'  # 43
+python .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --vars
+python .claude/skills/comprehend/scripts/repl_client.py "$REPL_ADDR" --shutdown
 ```
 
 ## Security

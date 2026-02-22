@@ -43,18 +43,12 @@ launching the server:
 ```bash
 # Generate a session-unique address (prevents collisions between
 # simultaneous sessions on the same machine)
-REPL_ADDR=$(python3 SCRIPTS/repl_server.py --make-addr)
-python3 SCRIPTS/repl_server.py "$REPL_ADDR" &
+REPL_ADDR=$(python SCRIPTS/repl_server.py --make-addr)
+python SCRIPTS/repl_server.py "$REPL_ADDR" &
 ```
 
-On Windows (no Unix domain sockets), the server automatically binds to
-TCP on localhost and writes the address to the given path. The client
-reads it back. The interface is identical:
-
-```powershell
-$env:REPL_ADDR = python SCRIPTS/repl_server.py --make-addr
-Start-Process -NoNewWindow python SCRIPTS/repl_server.py,$env:REPL_ADDR
-```
+On Windows, the server automatically uses TCP on localhost instead of
+Unix sockets. No code changes needed — the interface is identical.
 
 Throughout this document, `REPL_ADDR` refers to the session-unique
 address returned by `--make-addr`. In all bash commands, substitute the
@@ -75,18 +69,18 @@ persistent, queryable knowledge base for the rest of the conversation.
 
 ```bash
 # Run code (state persists between calls)
-python3 SCRIPTS/repl_client.py REPL_ADDR 'greeting_message = "hello"'
-python3 SCRIPTS/repl_client.py REPL_ADDR 'print(greeting_message)'
+python SCRIPTS/repl_client.py REPL_ADDR 'greeting_message = "hello"'
+python SCRIPTS/repl_client.py REPL_ADDR 'print(greeting_message)'
 
 # See all stored variables
-python3 SCRIPTS/repl_client.py REPL_ADDR --vars
+python SCRIPTS/repl_client.py REPL_ADDR --vars
 ```
 
 For multi-line code or code containing single quotes (e.g., dict keys
 inside f-strings), use a heredoc to pipe code through stdin:
 
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 for key, val in data.items():
     print(f"  {key}: {val['count']} items")
 PYEOF
@@ -97,17 +91,22 @@ Python unchanged — single quotes, double quotes, backslashes, everything.
 One-liners with only double-quoted strings work fine as positional args.
 Anything else should use a heredoc.
 
+**Windows paths in heredocs:** Always use forward slashes in Python code
+inside heredocs (`"C:/Users/..."` not `"C:\\Users\\..."`). Python accepts
+forward slashes on all platforms. This avoids backslash-as-line-continuation
+confusion.
+
 **Use the REPL for everything.** Finding files, searching content, reading
 source, storing results — all of it. Every fact you discover goes into a
 variable where it accumulates instead of evaporating.
 
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 import glob, os, re
 
 # Find files (instead of Glob tool)
 project_source_files = glob.glob("/path/to/project/**/*.py", recursive=True)
-project_source_files = [f for f in project_source_files if "/.git/" not in f]
+project_source_files = [f for f in project_source_files if "/.git/" not in f.replace("\\", "/")]
 
 # Measure them (instead of wc)
 file_size_by_path = {f: os.path.getsize(f) for f in project_source_files}
@@ -138,7 +137,7 @@ re-initialize it — that would wipe results from other subagents. Just
 write to it:
 
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 _comprehend_results["auth_module_analysis"] = {"functions": [...], "issues": [...]}
 PYEOF
 ```
@@ -152,7 +151,7 @@ Keys should be descriptive: `'auth_module_function_signatures'`, not
 `'chunk1'`. For deeper nesting, use sub-keys within the assigned key:
 
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 _comprehend_results["auth_module"] = {
     "function_signatures": [...],
     "import_map": {...},
@@ -172,7 +171,7 @@ Before reading any files, measure everything you intend to read. Use the
 REPL (as above) or the bundled script:
 
 ```bash
-python3 SCRIPTS/chunk_text.py info <file>
+python SCRIPTS/chunk_text.py info <file>
 ```
 
 Measure ALL files — source, tests, docs, config. The most common failure
@@ -217,7 +216,7 @@ for actual work — edits, debugging, new features — rather than filled
 with source code you've already analyzed.
 
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 # Answer a specific question without re-reading any files
 print(_comprehend_results["core_library"]["design_patterns"])
 PYEOF
@@ -294,7 +293,7 @@ models.py, unused import in tokens.py)."
 
 **Parent reads back:**
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 auth_data = _comprehend_results["auth_module_analysis"]
 print("Functions:", auth_data["function_signatures"])
 print("Concerns:", auth_data["identified_concerns"])
@@ -337,7 +336,7 @@ Task(prompt="Use REPL at REPL_ADDR. Analyze this log segment for errors.
 
 **Parent reads accumulated results:**
 ```bash
-python3 SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
+python SCRIPTS/repl_client.py REPL_ADDR <<'PYEOF'
 for segment_key, segment_data in sorted(_comprehend_results.items()):
     if segment_key.startswith("log_segment_"):
         print(f"{segment_key}: {segment_data['error_summary']}")
@@ -351,9 +350,9 @@ PYEOF
 For large single files, use the bundled script to split at natural boundaries:
 
 ```bash
-python3 SCRIPTS/chunk_text.py info large_file.txt      # measure
-python3 SCRIPTS/chunk_text.py boundaries source.py      # find split points
-python3 SCRIPTS/chunk_text.py chunk large_file.txt --size 80000 --overlap 200  # split
+python SCRIPTS/chunk_text.py info large_file.txt      # measure
+python SCRIPTS/chunk_text.py boundaries source.py      # find split points
+python SCRIPTS/chunk_text.py chunk large_file.txt --size 80000 --overlap 200  # split
 ```
 
 For structured files (code, markdown), prefer splitting at functions, classes,

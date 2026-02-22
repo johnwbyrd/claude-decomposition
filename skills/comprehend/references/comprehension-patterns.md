@@ -9,7 +9,7 @@ using the persistent REPL and subagents.
 
 **Assessment:**
 ```bash
-python3 scripts/chunk_text.py info server.log
+python scripts/chunk_text.py info server.log
 # → char_count: 45000000, line_count: 520000, suggested_chunks: 450
 ```
 
@@ -22,10 +22,10 @@ fan out in parallel, aggregate error summaries via the REPL.
 
 1. Generate a session-unique address, start the REPL, and examine log structure:
    ```bash
-   REPL_ADDR=$(python3 scripts/repl_server.py --make-addr)
-   python3 scripts/repl_server.py "$REPL_ADDR" &
+   REPL_ADDR=$(python scripts/repl_server.py --make-addr)
+   python scripts/repl_server.py "$REPL_ADDR" &
 
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    with open("server.log") as f:
        first_lines = [next(f) for _ in range(5)]
        print("First lines:", first_lines)
@@ -34,7 +34,7 @@ fan out in parallel, aggregate error summaries via the REPL.
 
 2. Chunk into manageable pieces (~100K chars each):
    ```bash
-   python3 scripts/chunk_text.py chunk server.log --size 100000
+   python scripts/chunk_text.py chunk server.log --size 100000
    ```
 
 3. Fan out parallel Task calls (one per chunk). Each subagent stores
@@ -48,7 +48,7 @@ fan out in parallel, aggregate error summaries via the REPL.
 
 4. Aggregate from the REPL:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    all_errors = []
    for chunk_id, chunk_errors in errors.items():
        all_errors.extend(chunk_errors)
@@ -73,7 +73,7 @@ potential bugs."
 
 **Assessment:**
 ```bash
-python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+python scripts/repl_client.py REPL_ADDR <<'PYEOF'
 import glob, os
 source_files = glob.glob("src/**/*.py", recursive=True)
 file_sizes = {f: os.path.getsize(f) for f in source_files}
@@ -91,7 +91,7 @@ in the REPL for cross-module aggregation.
 
 1. Group files by directory in the REPL:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    from collections import defaultdict
    groups = defaultdict(list)
    for f in source_files:
@@ -113,7 +113,7 @@ in the REPL for cross-module aggregation.
 
 3. Aggregate from the REPL:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    all_findings = []
    for module, findings in reviews.items():
        all_findings.extend(findings)
@@ -138,7 +138,7 @@ liability to less than the purchase price?"
 
 **Assessment:**
 ```bash
-python3 scripts/chunk_text.py info contract.txt
+python scripts/chunk_text.py info contract.txt
 # → char_count: 850000, suggested_chunks: 9, has_structure: true
 ```
 
@@ -153,7 +153,7 @@ All results flow through the REPL.
 
 1. Detect section boundaries:
    ```bash
-   python3 scripts/chunk_text.py boundaries contract.txt
+   python scripts/chunk_text.py boundaries contract.txt
    ```
 
 2. Chunk by sections. Fan out Phase 1 — lightweight relevance check:
@@ -167,7 +167,7 @@ All results flow through the REPL.
 
 3. Collect Phase 1 results. Store relevance flags in the REPL:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    relevant_sections = [s for s, flag in section_flags.items() if flag == "YES"]
    print(f"{len(relevant_sections)} of {len(section_flags)} sections are relevant")
    PYEOF
@@ -197,7 +197,7 @@ and asks "What data was lost or changed in the migration?"
 
 **Assessment:**
 ```bash
-python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+python scripts/repl_client.py REPL_ADDR <<'PYEOF'
 import os
 before_size = os.path.getsize("before.csv")
 after_size = os.path.getsize("after.csv")
@@ -215,7 +215,7 @@ compare pairwise, aggregate differences in the REPL.
 
 1. Examine structure in the REPL:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    with open("before.csv") as f:
        header = f.readline().strip()
        row_count_before = sum(1 for _ in f)
@@ -229,8 +229,8 @@ compare pairwise, aggregate differences in the REPL.
 
 2. Chunk both files into matching row ranges:
    ```bash
-   python3 scripts/chunk_text.py chunk before.csv --size 100000
-   python3 scripts/chunk_text.py chunk after.csv --size 100000
+   python scripts/chunk_text.py chunk before.csv --size 100000
+   python scripts/chunk_text.py chunk after.csv --size 100000
    ```
 
 3. Pair chunks by position. Fan out parallel comparisons:
@@ -242,7 +242,7 @@ compare pairwise, aggregate differences in the REPL.
 
 4. Aggregate from the REPL:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    total_lost = sum(len(d["lost_rows"]) for d in diffs.values())
    total_changed = sum(len(d["changed_rows"]) for d in diffs.values())
    total_added = sum(len(d["added_rows"]) for d in diffs.values())
@@ -263,7 +263,7 @@ to the database, identifying all validation steps along the way."
 
 **Assessment:**
 ```bash
-python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+python scripts/repl_client.py REPL_ADDR <<'PYEOF'
 import glob, os
 py_files = glob.glob("src/**/*.py", recursive=True)
 total = sum(os.path.getsize(f) for f in py_files)
@@ -298,7 +298,7 @@ Phase 3: Synthesize the trace from REPL state.
 
 2. Read the architecture map from the REPL and identify the call chain:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    for layer, funcs in arch.items():
        print(f"\n{layer}:")
        for name, info in funcs.items():
@@ -318,7 +318,7 @@ Phase 3: Synthesize the trace from REPL state.
 
 4. Phase 3 — Read trace from REPL and synthesize for the user:
    ```bash
-   python3 scripts/repl_client.py REPL_ADDR <<'PYEOF'
+   python scripts/repl_client.py REPL_ADDR <<'PYEOF'
    for i, step in enumerate(trace_result, 1):
        checks = ", ".join(step.get("validation_checks", []))
        print(f"{i}. {step['file']}:{step['function']} — {step['action']}")
