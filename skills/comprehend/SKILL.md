@@ -134,7 +134,18 @@ inside heredocs (`"C:/Users/..."` not `"C:\\Users\\..."`). Python accepts
 forward slashes on all platforms. This avoids backslash-as-line-continuation
 confusion.
 
-**Use the REPL for everything.** Finding files, searching content, reading
+**CRITICAL: AFTER STARTING THE REPL SERVER, YOU MUST NOT USE ANY OTHER TOOLS FOR FILE OPERATIONS.**
+
+The following actions are **FORBIDDEN** once the REPL is running:
+- Using `cat`, `head`, `tail`, `grep`, `find`, `wc`, `ls` or any shell command to read files
+- Using Read_file tool to read source files directly into your context
+- Using Glob tool to enumerate files
+- Using Grep tool to search file contents
+- Any operation that brings file content into your context window
+
+If you catch yourself about to use a shell command or file tool to access file content, **STOP**. Use the REPL client instead.
+
+**Use the REPL for everything!** Finding files, searching content, reading
 source, storing results — all of it. Every fact you discover goes into a
 variable where it accumulates instead of evaporating.
 
