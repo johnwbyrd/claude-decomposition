@@ -128,6 +128,8 @@ def handle_client(conn, repl, addr_path):
             visible = {k: type(v).__name__ for k, v in repl.user_locals.items()
                         if not k.startswith("_") or k in _RESERVED_VARS}
             send_msg(conn, {"locals": visible})
+        elif msg.get("command") == "ping":
+            send_msg(conn, {"status": "pong"})
         elif msg.get("command") == "shutdown":
             send_msg(conn, {"status": "shutting down"})
             if os.path.exists(addr_path):

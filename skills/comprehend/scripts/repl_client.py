@@ -8,6 +8,7 @@ Usage:
     echo 'x = 42' | repl_client.py <address_path>
     repl_client.py <address_path> 'print(x + 1)'
     repl_client.py <address_path> --file <path>
+    repl_client.py <address_path> --ping
     repl_client.py <address_path> --vars
     repl_client.py <address_path> --shutdown
 
@@ -42,8 +43,12 @@ def recv_msg(sock):
     return json.loads(payload.decode("utf-8"))
 
 
-def connect(addr_path):
-    """Connect to the REPL server, auto-detecting Unix socket vs TCP."""
+def connect(addr_path, timeout=5):
+    """Connect to the REPL server, auto-detecting Unix socket vs TCP.
+
+    Unix socket connects are instant (succeed or fail immediately), so the
+    timeout only applies to TCP where a SYN could be lost.
+    """
     if _HAS_UNIX:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(addr_path)
@@ -52,7 +57,9 @@ def connect(addr_path):
             addr = f.read().strip()
         host, port = addr.rsplit(':', 1)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
         sock.connect((host, int(port)))
+        sock.settimeout(None)
     return sock
 
 
@@ -63,7 +70,9 @@ def main():
 
     addr_path = sys.argv[1]
 
-    if len(sys.argv) > 2 and sys.argv[2] == "--vars":
+    if len(sys.argv) > 2 and sys.argv[2] == "--ping":
+        msg = {"command": "ping"}
+    elif len(sys.argv) > 2 and sys.argv[2] == "--vars":
         msg = {"command": "show_vars"}
     elif len(sys.argv) > 2 and sys.argv[2] == "--shutdown":
         msg = {"command": "shutdown"}
@@ -77,6 +86,10 @@ def main():
 
     try:
         sock = connect(addr_path)
+    except socket.timeout:
+        print(f"Error: Connection to REPL server at {addr_path} timed out", file=sys.stderr)
+        print("The socket file exists but the server may not be running.", file=sys.stderr)
+        sys.exit(1)
     except (ConnectionRefusedError, FileNotFoundError):
         print(f"Error: Cannot connect to REPL server at {addr_path}", file=sys.stderr)
         print("Start the server first: python repl_server.py " + addr_path, file=sys.stderr)
@@ -90,6 +103,9 @@ def main():
         print("Error: No response from server", file=sys.stderr)
         sys.exit(1)
 
+    if result.get("status") == "pong":
+        print("pong")
+        return
     if result.get("stdout"):
         print(result["stdout"], end="")
     if result.get("stderr"):
