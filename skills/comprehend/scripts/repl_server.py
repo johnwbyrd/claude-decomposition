@@ -31,7 +31,10 @@ import uuid
 _HAS_UNIX = hasattr(socket, 'AF_UNIX')
 
 
-_SAFE_BUILTINS = {
+# Not a security sandbox — the platform (container, VM, etc.) is the trust boundary.
+# This list scopes the REPL namespace to useful builtins and blocks reflexive
+# primitives (eval/exec/compile/globals/locals) that would complicate state tracking.
+_REPL_BUILTINS = {
     "print": print, "len": len, "str": str, "int": int, "float": float,
     "list": list, "dict": dict, "set": set, "tuple": tuple, "bool": bool,
     "type": type, "isinstance": isinstance, "enumerate": enumerate,
@@ -62,7 +65,7 @@ _RESERVED_VARS = {"_comprehend_results"}
 
 class PersistentREPL:
     def __init__(self):
-        self.globals = {"__builtins__": _SAFE_BUILTINS.copy(), "__name__": "__main__"}
+        self.globals = {"__builtins__": _REPL_BUILTINS.copy(), "__name__": "__main__"}
         self.user_locals = {"_comprehend_results": {}}
         self._lock = threading.Lock()
 
