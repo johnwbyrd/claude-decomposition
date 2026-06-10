@@ -66,25 +66,51 @@ bash commands, substitute the actual absolute path.
 
 ## The REPL
 
-Every session starts by generating a unique address and launching the server:
+Every session starts by generating a unique address, launching the
+server, verifying it, and **echoing the address back at the end** — all
+in one chained command:
 
 ```bash
-# Generate a session-unique address (prevents collisions between
-# simultaneous sessions on the same machine)
-REPL_ADDR=$(python SCRIPTS/repl_server.py --make-addr)
-nohup python SCRIPTS/repl_server.py "$REPL_ADDR" > /dev/null 2>&1 &
+REPL_ADDR=$(python SCRIPTS/repl_server.py --make-addr) && \
+  nohup python SCRIPTS/repl_server.py "$REPL_ADDR" > /dev/null 2>&1 & \
+  sleep 0.3 && \
+  python SCRIPTS/repl_client.py "$REPL_ADDR" --vars && \
+  echo "REPL_ADDR_FOR_THIS_SESSION=$REPL_ADDR"
 ```
 
-The server must outlive the shell that starts it. Use `nohup` and shell
-backgrounding (`&`) as shown above. Do **not** use the Bash tool's
-`run_in_background` parameter — it may kill the server when the task
-"completes." On Windows, the server automatically uses TCP on localhost
-instead of Unix sockets. No code changes needed — the interface is
-identical.
+You should see `{"_comprehend_results": "dict"}` followed by
+`REPL_ADDR_FOR_THIS_SESSION=/tmp/comprehend_<hex>.sock` (or a TCP
+`host:port` on Windows). **Read that line, commit the literal address
+to memory, and use it verbatim in every subsequent call** — including
+in the prompts you send to subagents. If you see an empty address,
+`OSError: [Errno 22] Invalid argument`, or no `REPL_ADDR_FOR_THIS_SESSION`
+line, stop and diagnose before going further; a broken address now
+will silently break every subagent prompt you write later.
 
-Throughout this document, `REPL_ADDR` refers to the session-unique
-address returned by `--make-addr`. In all bash commands, substitute the
-actual path. **Each session must use its own address.**
+### Why all on one line, and why echo the address?
+
+`$REPL_ADDR` is a shell variable. Shell variables **do not persist**
+across Bash tool calls, and in some agent shells they don't even
+persist across newline-separated lines within a single call. So the
+shell variable is only good for the few seconds the launch command
+takes. After that, the only place the address can live is in your
+context as text — which is fine, because it's a single short string
+that already appears in the Bash tool's output. The trailing `echo`
+just makes sure that string is impossible to miss. Verifying with
+`--vars` in the same chain turns a silent loss-of-address into an
+immediate, loud failure.
+
+The server must outlive the shell that starts it. Use `nohup` and
+shell backgrounding (`&`) as shown above. Do **not** use the Bash
+tool's `run_in_background` parameter — it may kill the server when the
+task "completes." On Windows, the server automatically uses TCP on
+localhost instead of Unix sockets. No code changes needed — the
+interface is identical.
+
+Throughout the rest of this document, examples write `REPL_ADDR` as a
+placeholder. In every real command — including subagent prompts —
+substitute the literal address you saw printed at launch. **Each
+session must use its own address.**
 
 This launches a persistent Python REPL. Variables, imports, and definitions
 survive across calls — not just during comprehension, but for the entire
