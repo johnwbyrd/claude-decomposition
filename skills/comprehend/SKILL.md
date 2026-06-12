@@ -17,6 +17,12 @@ small and available for the actual work — edits, debugging, reasoning.
 
 That is the entire method. What follows is how to do it.
 
+# Required first action
+
+Before running any commands, call `read_file` on this SKILL.md and read from
+line 1 to the end. You will fail at the REPL stage if and when you ignore this
+instruction.
+
 ## When to Use This
 
 Use this workflow whenever you are making changes in code you don't already
